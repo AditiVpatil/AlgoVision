@@ -20,10 +20,10 @@ function initFirebase() {
   const projectId = process.env.FIREBASE_PROJECT_ID
 
   if (!serviceAccountPath || !projectId) {
-    throw new Error(
-      '❌  Missing Firebase config.\n' +
-      '    Set FIREBASE_SERVICE_ACCOUNT_PATH and FIREBASE_PROJECT_ID in backend/.env'
+    console.warn(
+      '⚠️  Missing Firebase config (FIREBASE_SERVICE_ACCOUNT_PATH or FIREBASE_PROJECT_ID in .env). Firebase will be bypassed.'
     )
+    return null
   }
 
   try {

@@ -7,7 +7,7 @@ import { authenticate } from '../middleware/auth.js'
 
 dotenv.config()
 const router = express.Router()
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'dummy_key_to_prevent_crash' })
 
 // GET /api/topics  — list all topics (without full content for performance)
 router.get('/topics', (req, res) => {
