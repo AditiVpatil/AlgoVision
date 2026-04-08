@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
 import { AnimatedBackground } from '@/components/animated-background'
 import {
@@ -25,6 +25,7 @@ const starters = {
 }
 
 export default function PracticePage() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialTopic = searchParams.get('topic') || 'All'
 
@@ -129,11 +130,7 @@ export default function PracticePage() {
   }
 
   const openEditor = (problem) => {
-    setSelectedProblem(problem)
-    setCode(starters[language] || starters.python)
-    setSelectedView('editor')
-    setAiAnalysis(null)
-    setOutput('')
+    navigate(`/problem/${problem.id}`)
   }
 
   const filtered = problems.filter(p => {

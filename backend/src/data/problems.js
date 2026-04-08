@@ -9,6 +9,17 @@ export const problems = [
     tags: ['Array', 'Hash Table'],
     description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
     solved: true,
+    testCases: [
+      { input: 'nums=[2,7,11,15], target=9', expected: '[0,1]' },
+      { input: 'nums=[3,2,4], target=6', expected: '[1,2]' },
+      { input: 'nums=[3,3], target=6', expected: '[0,1]' }
+    ],
+    starters: {
+      python: "def solve(nums, target):\n    # Write your solution here\n    pass\n\nprint(solve([2, 7, 11, 15], 9))",
+      javascript: "function solve(nums, target) {\n    // Write your solution here\n}\n\nconsole.log(solve([2, 7, 11, 15], 9));",
+      java: "public class Solution {\n    public int[] solve(int[] nums, int target) {\n        // Write your solution here\n        return new int[]{};\n    }\n    public static void main(String[] args) {\n        Solution sol = new Solution();\n        int[] res = sol.solve(new int[]{2, 7, 11, 15}, 9);\n        System.out.println(\"[\" + res[0] + \", \" + res[1] + \"]\");\n    }\n}",
+      cpp: "#include <iostream>\n#include <vector>\nusing namespace std;\n\nvector<int> solve(vector<int>& nums, int target) {\n    // Write your solution here\n    return {};\n}\n\nint main() {\n    vector<int> nums = {2, 7, 11, 15};\n    vector<int> res = solve(nums, 9);\n    if(res.size() == 2) cout << \"[\" << res[0] << \", \" << res[1] << \"]\\n\";\n    return 0;\n}"
+    }
   },
   {
     id: 2,
@@ -20,6 +31,16 @@ export const problems = [
     tags: ['Array', 'Dynamic Programming'],
     description: 'Find the maximum profit from buying and selling a stock once.',
     solved: true,
+    testCases: [
+      { input: 'prices=[7,1,5,3,6,4]', expected: '5' },
+      { input: 'prices=[7,6,4,3,1]', expected: '0' }
+    ],
+    starters: {
+      python: "def maxProfit(prices):\n    # Write your solution here\n    pass\n\nprint(maxProfit([7,1,5,3,6,4]))",
+      javascript: "function maxProfit(prices) {\n    // Write your solution here\n}\n\nconsole.log(maxProfit([7,1,5,3,6,4]));",
+      java: "public class Solution {\n    public int maxProfit(int[] prices) {\n        // Write your solution here\n        return 0;\n    }\n    public static void main(String[] args) {\n        System.out.println(new Solution().maxProfit(new int[]{7,1,5,3,6,4}));\n    }\n}",
+      cpp: "#include <iostream>\n#include <vector>\nusing namespace std;\n\nint maxProfit(vector<int>& prices) {\n    // Write your solution here\n    return 0;\n}\n\nint main() {\n    vector<int> prices = {7,1,5,3,6,4};\n    cout << maxProfit(prices) << \"\\n\";\n    return 0;\n}"
+    }
   },
   {
     id: 3,
@@ -31,6 +52,17 @@ export const problems = [
     tags: ['Array', 'Hash Table', 'Sorting'],
     description: 'Given an integer array, return true if any value appears at least twice.',
     solved: false,
+    testCases: [
+      { input: 'nums=[1,2,3,1]', expected: 'true' },
+      { input: 'nums=[1,2,3,4]', expected: 'false' },
+      { input: 'nums=[1,1,1,3,3,4,3,2,4,2]', expected: 'true' }
+    ],
+    starters: {
+      python: "def containsDuplicate(nums):\n    # Write your solution here\n    pass\n\nprint(containsDuplicate([1,2,3,1]))",
+      javascript: "function containsDuplicate(nums) {\n    // Write your solution here\n}\n\nconsole.log(containsDuplicate([1,2,3,1]));",
+      java: "public class Solution {\n    public boolean containsDuplicate(int[] nums) {\n        // Write your solution here\n        return false;\n    }\n    public static void main(String[] args) {\n        System.out.println(new Solution().containsDuplicate(new int[]{1,2,3,1}));\n    }\n}",
+      cpp: "#include <iostream>\n#include <vector>\nusing namespace std;\n\nbool containsDuplicate(vector<int>& nums) {\n    // Write your solution here\n    return false;\n}\n\nint main() {\n    vector<int> nums = {1,2,3,1};\n    cout << (containsDuplicate(nums) ? \"true\" : \"false\") << \"\\n\";\n    return 0;\n}"
+    }
   },
   {
     id: 4,
