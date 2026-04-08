@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
 import { AnimatedBackground } from '@/components/animated-background'
 import {
@@ -8,7 +8,7 @@ import {
   Send, Maximize2, Minimize2, RotateCcw, AlertTriangle,
   Loader2, Cpu, Brain, CheckCircle, Info, Layers, 
   GitBranch, Network, Box, ChevronLeft, LayoutGrid, ArrowRight,
-  Bookmark, BookmarkCheck
+  Bookmark, BookmarkCheck, X, Eye
 } from 'lucide-react'
 import { AiTutor } from '@/components/AiTutor'
 
@@ -25,7 +25,7 @@ const starters = {
 }
 
 export default function PracticePage() {
-  const navigate = useNavigate()
+
   const [searchParams] = useSearchParams()
   const initialTopic = searchParams.get('topic') || 'All'
 
@@ -53,6 +53,7 @@ export default function PracticePage() {
     try { return JSON.parse(localStorage.getItem('av_bookmarks') || '[]') } catch { return [] }
   })
   const [aiOpen, setAiOpen] = useState(false)
+  const [showOptimizedModal, setShowOptimizedModal] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -130,7 +131,11 @@ export default function PracticePage() {
   }
 
   const openEditor = (problem) => {
-    navigate(`/problem/${problem.id}`)
+    setSelectedProblem(problem)
+    setCode(starters[language] || starters.python)
+    setSelectedView('editor')
+    setAiAnalysis(null)
+    setOutput('')
   }
 
   const filtered = problems.filter(p => {
@@ -148,7 +153,7 @@ export default function PracticePage() {
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
-        className="min-h-screen relative flex flex-col"
+        className="min-h-screen relative bg-[#07111C]"
       >
         <AnimatedBackground />
         <AiTutor topic="general" isOpen={aiOpen} onClose={() => setAiOpen(false)} />
@@ -328,7 +333,7 @@ export default function PracticePage() {
     <motion.div 
       initial={{ y: 20, opacity: 0 }} 
       animate={{ y: 0, opacity: 1 }} 
-      className="h-screen flex flex-col overflow-hidden"
+      className="h-screen bg-[#07111C] flex flex-col overflow-hidden"
     >
       <div className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0A0F1E] flex-shrink-0 backdrop-blur-2xl">
         <div className="flex items-center gap-6">
@@ -435,12 +440,27 @@ export default function PracticePage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 rounded-2xl bg-[#050912] border border-white/5">
-                    <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Detected</p>
-                    <p className="text-xs text-white font-mono">{aiAnalysis.yourComplexity}</p>
+                    <p className="text-[8px] font-black text-slate-600 uppercase mb-1">Time Complexity</p>
+                    <p className="text-xs text-white font-mono">{aiAnalysis.timeComplexity || aiAnalysis.yourComplexity}</p>
                   </div>
                   <div className="p-4 rounded-2xl bg-[#050912] border border-white/5">
-                    <p className="text-[8px] font-black text-emerald-500 uppercase mb-1">Target</p>
-                    <p className="text-xs text-emerald-400 font-mono">{aiAnalysis.optimalComplexity}</p>
+                    <p className="text-[8px] font-black text-emerald-500 uppercase mb-1">Space Complexity</p>
+                    <p className="text-xs text-emerald-400 font-mono">{aiAnalysis.spaceComplexity || 'O(1)'}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <button
+                    onClick={() => setShowOptimizedModal(true)}
+                    className="w-full py-4 rounded-2xl bg-[#7B61FF]/10 border border-[#7B61FF]/20 text-[#7B61FF] text-xs font-black uppercase tracking-widest hover:bg-[#7B61FF] hover:text-white transition-all duration-300 flex items-center justify-center gap-2 group"
+                  >
+                    <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    Visualize Optimized Version
+                  </button>
+                  
+                  <div className="flex items-center gap-2 p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <p className="text-[9px] font-bold text-emerald-500/70 uppercase tracking-tighter">Optimal Complexity Target: {aiAnalysis.optimalComplexity}</p>
                   </div>
                 </div>
               </div>
@@ -499,6 +519,84 @@ export default function PracticePage() {
           </div>
         </div>
       </div>
+
+      {/* Optimized Code Visualization Modal */}
+      <AnimatePresence>
+        {showOptimizedModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-5xl h-[80vh] bg-[#0A0F1E] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl"
+            >
+              <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-2xl bg-[#7B61FF]/10 border border-[#7B61FF]/20">
+                    <Sparkles className="w-5 h-5 text-[#7B61FF]" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-white">AI Optimized Strategy</h3>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">Automated High-Performance Implementation</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowOptimizedModal(false)}
+                  className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/10 transition-all border border-white/5"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 bg-[#1e1e1e] relative">
+                  <Editor
+                    height="100%"
+                    theme="vs-dark"
+                    language={language === 'python' ? 'python' : language === 'javascript' ? 'javascript' : 'cpp'}
+                    value={aiAnalysis?.optimizedCode || '// No optimized code available'}
+                    options={{
+                      readOnly: true,
+                      fontSize: 14,
+                      minimap: { enabled: false },
+                      scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
+                      lineNumbers: 'on',
+                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                      fontWeight: '500',
+                      lineHeight: 1.6,
+                      padding: { top: 30, left: 30 },
+                    }}
+                  />
+                  <div className="absolute top-8 right-10 pointer-events-none opacity-5">
+                    <Zap className="w-24 h-24 text-[#7B61FF]" />
+                  </div>
+                </div>
+                <div className="w-80 border-l border-white/5 p-8 bg-[#0a121d] overflow-auto">
+                    <h4 className="text-[10px] font-black text-[#7B61FF] uppercase tracking-[0.2em] mb-6">Structural Improvements</h4>
+                    <div className="space-y-6">
+                      {aiAnalysis?.improvements?.map((imp, i) => (
+                        <div key={i} className="flex gap-4">
+                          <div className="w-6 h-6 rounded-lg bg-[#7B61FF]/10 border border-[#7B61FF]/20 flex items-center justify-center flex-shrink-0 text-[10px] font-black text-[#7B61FF]">{i+1}</div>
+                          <p className="text-xs text-slate-400 font-medium leading-relaxed">{imp}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-12 p-6 rounded-2xl bg-gradient-to-br from-[#7B61FF]/10 to-transparent border border-[#7B61FF]/20">
+                      <p className="text-[8px] font-black text-slate-500 uppercase mb-2 tracking-widest">Performance Note</p>
+                      <p className="text-xs text-slate-300 italic font-medium">"{aiAnalysis?.encouragement}"</p>
+                    </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

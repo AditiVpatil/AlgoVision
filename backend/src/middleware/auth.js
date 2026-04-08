@@ -19,7 +19,6 @@ export async function authenticate(req, res, next) {
     // Append decoded payload.
     // decoded contains { id, email, role, etc. }
     req.user = decoded
-
     next()
   } catch (err) {
     console.error('JWT Verification Failed:', err.message)

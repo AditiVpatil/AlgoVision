@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, Loader2, Sparkles, X } from 'lucide-react'
 
-const API = 'http://localhost:5000/api'
+import { API_BASE_URL } from '@/src/config'
 
 export function AiTutor({ topic, isOpen, onClose }) {
   const [messages, setMessages] = useState([
@@ -38,7 +38,7 @@ export function AiTutor({ topic, isOpen, onClose }) {
     setMessages((prev) => [...prev, { role: 'user', text: q, ts: Date.now() }])
     setLoading(true)
     try {
-      const res = await fetch(`http://localhost:5000/api/ask-ai`, {
+      const res = await fetch(`${API_BASE_URL}/ask-ai`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

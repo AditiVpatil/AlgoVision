@@ -20,7 +20,22 @@ const signToken = (user) => {
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   const { email, password, username } = req.body
+  console.log('👤 Registration attempt:', email, db ? '(Firestore)' : '(Mock Memory)')
   if (!email || !password) return res.status(400).json({ message: 'Email and password required' })
+
+  // Safety check for missing DB
+  if (!db) {
+    console.log('⚠️ Firebase DB missing, using local memory for registration.')
+    const existing = MOCK_USERS.find(u => u.email === email)
+    if (existing) return res.status(409).json({ message: 'User already exists' })
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(password, salt)
+    const newUser = { id: Date.now().toString(), email, password: hashedPassword, username: username || email.split('@')[0], createdAt: new Date().toISOString() }
+    MOCK_USERS.push(newUser)
+    const token = signToken(newUser)
+    const { password: _, ...userNoPw } = newUser
+    return res.status(201).json({ token, user: userNoPw })
+  }
 
   try {
     // Check if exists
@@ -69,6 +84,18 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ message: 'Email and password required' })
 
+  // Safety check for missing DB
+  if (!db) {
+    console.log('Firebase DB missing, using local memory setup for login.')
+    const user = MOCK_USERS.find(u => u.email === email)
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' })
+    const isMatch = await bcrypt.compare(password, user.password)
+    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' })
+    const token = signToken(user)
+    const { password: _, ...userNoPw } = user
+    return res.json({ token, user: userNoPw })
+  }
+
   try {
     const snap = await db.collection('users').where('email', '==', email).limit(1).get()
     if (snap.empty) return res.status(401).json({ message: 'Invalid credentials' })
@@ -97,6 +124,13 @@ router.post('/login', async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', authenticate, async (req, res) => {
+  if (!db) {
+    const user = MOCK_USERS.find(u => u.id === req.user.id)
+    if (!user) return res.status(404).json({ message: 'User not found in mock storage' })
+    const { password: _, ...userNoPw } = user
+    return res.json({ user: userNoPw })
+  }
+
   try {
     const doc = await db.collection('users').doc(req.user.id).get()
     if (!doc.exists) return res.status(404).json({ message: 'User not found' })

@@ -86,7 +86,7 @@ router.post('/analyze', authenticate, async (req, res) => {
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
-  const prompt = `You are an expert DSA coach analyzing a student's solution.
+    const prompt = `You are an expert DSA coach analyzing a student's solution.
 
 PROBLEM: ${problemDescription}
 OPTIMAL COMPLEXITY: ${optimalComplexity}
@@ -97,18 +97,20 @@ STUDENT CODE (${language}):
 ${code}
 \`\`\`
 
-Respond with ONLY a valid JSON object (no markdown, no backticks):
+Respond with ONLY a valid JSON object:
 {
-  "score": <integer 0-100>,
-  "yourComplexity": "<detected time complexity>",
+  "score": <integer 0-100, representing optimization percentage>,
+  "timeComplexity": "<detected student time complexity, e.g. O(N)>",
+  "spaceComplexity": "<detected student space complexity, e.g. O(1)>",
   "optimalComplexity": "${optimalComplexity}",
   "currentApproach": "<1-2 sentence description>",
   "improvements": ["<step 1>", "<step 2>", "<step 3 max>"],
-  "optimizedPseudocode": "<pseudocode of optimal approach>",
+  "optimizedCode": "<full working ${language} code of the optimal approach>",
   "encouragement": "<1 sentence motivational feedback>"
 }
 
 Score: 90-100=near optimal, 70-89=good, 40-69=works but inefficient, 0-39=brute force.`
+
 
   try {
     const completion = await openai.chat.completions.create({
@@ -125,8 +127,8 @@ Score: 90-100=near optimal, 70-89=good, 40-69=works but inefficient, 0-39=brute 
     } catch {
       const match = raw?.match(/\{[\s\S]*\}/)
       analysis = match ? JSON.parse(match[0]) : {
-        score: 50, yourComplexity: 'Unknown', optimalComplexity,
-        currentApproach: raw, improvements: [], optimizedPseudocode: ''
+        score: 50, timeComplexity: 'Unknown', spaceComplexity: 'Unknown', optimalComplexity,
+        currentApproach: raw, improvements: [], optimizedCode: '', encouragement: 'Keep trying!'
       }
     }
 
@@ -137,7 +139,8 @@ Score: 90-100=near optimal, 70-89=good, 40-69=works but inefficient, 0-39=brute 
       problemId: problemId || 'unknown',
       code, language,
       optimizationScore: analysis.score,
-      yourComplexity: analysis.yourComplexity,
+      timeComplexity: analysis.timeComplexity,
+      spaceComplexity: analysis.spaceComplexity,
       optimalComplexity: analysis.optimalComplexity,
       aiAnalysis: JSON.stringify(analysis),
       passed: analysis.score >= 70,
@@ -150,14 +153,15 @@ Score: 90-100=near optimal, 70-89=good, 40-69=works but inefficient, 0-39=brute 
     
     const mockAnalysis = {
       score: 85,
-      yourComplexity: 'O(N)',
+      timeComplexity: 'O(N)',
+      spaceComplexity: 'O(1)',
       optimalComplexity: optimalComplexity || 'O(N)',
       currentApproach: 'You used a good approach, correctly leveraging loop constructs to process the elements.',
       improvements: [
         'Could potentially be optimized by removing redundant variables.',
         'Consider using built-in methods for standard operations if available.'
       ],
-      optimizedPseudocode: 'function optimal() {\n   // optimal implementation logic \n}'
+      optimizedCode: '// Optimized version using Hash Map\nfunction optimal() {\n   // optimal implementation logic \n}'
     }
 
     // Save submission to Firestore (non-blocking)
@@ -167,7 +171,8 @@ Score: 90-100=near optimal, 70-89=good, 40-69=works but inefficient, 0-39=brute 
       problemId: problemId || 'unknown',
       code, language,
       optimizationScore: mockAnalysis.score,
-      yourComplexity: mockAnalysis.yourComplexity,
+      timeComplexity: mockAnalysis.timeComplexity,
+      spaceComplexity: mockAnalysis.spaceComplexity,
       optimalComplexity: mockAnalysis.optimalComplexity,
       aiAnalysis: JSON.stringify(mockAnalysis),
       passed: true,

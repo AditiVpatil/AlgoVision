@@ -20,17 +20,35 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    // Bypass backend for now
-    setTimeout(() => {
-      localStorage.setItem('av_token', 'mock_token')
-      localStorage.setItem('av_user', JSON.stringify({
-        id: '123',
-        username: name || 'Test User',
-        email
-      }))
+    const endpoint = mode === 'login' ? '/auth/login' : '/auth/register'
+    const body = mode === 'login'
+      ? { email, password }
+      : { email, password, username: name }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Authentication failed')
+      }
+
+      // Save to local storage
+      localStorage.setItem('av_token', data.token)
+      localStorage.setItem('av_user', JSON.stringify(data.user))
+
+      // Success!
       navigate('/')
+    } catch (err) {
+      setError(err.message)
+    } finally {
       setLoading(false)
-    }, 600)
+    }
   }
 
   return (

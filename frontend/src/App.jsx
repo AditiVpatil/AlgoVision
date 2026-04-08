@@ -7,7 +7,6 @@ import LearnTopicPage from './pages/LearnTopicPage'
 import PracticePage from './pages/PracticePage'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
-import ProblemSolverPage from './pages/ProblemSolverPage'
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('av_token')
@@ -38,7 +37,6 @@ function AppLayout() {
             <Route path="/learn" element={<ProtectedRoute><LearnPage /></ProtectedRoute>} />
             <Route path="/learn/:topicId" element={<ProtectedRoute><LearnTopicPage /></ProtectedRoute>} />
             <Route path="/practice" element={<ProtectedRoute><PracticePage /></ProtectedRoute>} />
-            <Route path="/problem/:id" element={<ProtectedRoute><ProblemSolverPage /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           </Routes>
         </AnimatePresence>

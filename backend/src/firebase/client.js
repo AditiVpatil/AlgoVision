@@ -8,7 +8,7 @@ dotenv.config()
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-let db
+let db = null
 
 function initFirebase() {
   if (admin.apps.length > 0) {
@@ -23,6 +23,7 @@ function initFirebase() {
     console.warn(
       '⚠️  Missing Firebase config (FIREBASE_SERVICE_ACCOUNT_PATH or FIREBASE_PROJECT_ID in .env). Firebase will be bypassed.'
     )
+    db = null
     return null
   }
 
