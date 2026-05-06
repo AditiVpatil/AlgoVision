@@ -4,11 +4,12 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "nodemon --watch src --ext js,mjs,cjs,json src/index.js",
     "start": "node src/index.js",
     "seed": "node src/firebase/seed.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

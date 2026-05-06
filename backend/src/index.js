@@ -3,6 +3,7 @@ dotenv.config()
 
 import express from 'express'
 import cors from 'cors'
+import { createServer } from 'net'
 
 import dsaRoutes from './routes/dsa.js'
 import authRoutes from './routes/auth.js'
@@ -10,7 +11,7 @@ import codeRoutes from './routes/code.js'
 import progressRoutes from './routes/progress.js'
 
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = parseInt(process.env.PORT || '5000', 10)
 
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '10mb' }))
@@ -32,11 +33,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal server error' })
 })
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 AlgoVision API  →  http://localhost:${PORT}`)
-  console.log(`👤 Auth          →  /api/auth`)
-  console.log(`📚 Topics        →  /api/topics`)
-  console.log(`🎯 Problems      →  /api/problems`)
-  console.log(`💻 Code Run      →  /api/code/run`)
-  console.log(`🤖 AI Tutor      →  POST /api/ask-ai\n`)
-})
+// ── Gracefully handle port-in-use by trying the next port ─────────────────
+function startServer(port) {
+  const server = app.listen(port, () => {
+    console.log(`\n🚀 AlgoVision API  →  http://localhost:${port}`)
+    console.log(`👤 Auth          →  /api/auth`)
+    console.log(`📚 Topics        →  /api/topics`)
+    console.log(`🎯 Problems      →  /api/problems`)
+    console.log(`💻 Code Run      →  /api/code/run`)
+    console.log(`🤖 AI Tutor      →  POST /api/ask-ai\n`)
+  })
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`⚠️  Port ${port} is busy — trying port ${port + 1}...`)
+      startServer(port + 1)
+    } else {
+      throw err
+    }
+  })
+}
+
+startServer(PORT)

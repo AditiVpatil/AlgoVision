@@ -1,5 +1,6 @@
 import express from 'express'
 import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import dotenv from 'dotenv'
 import { topics as staticTopics } from '../data/topics.js'
 import { problems as staticProblems } from '../data/problems.js'
@@ -8,7 +9,9 @@ import { authenticate } from '../middleware/auth.js'
 
 dotenv.config()
 const router = express.Router()
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'dummy_key_to_prevent_crash' })
+
+const hasGemini = () => !!(process.env.GEMINI_API_KEY)
+const hasOpenAI = () => !!(process.env.OPENAI_API_KEY)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers — try Firestore first, fall back to static data arrays
@@ -30,7 +33,6 @@ async function getTopicById(id) {
   try {
     const doc = await db.collection('topics').doc(id).get()
     if (doc.exists) return doc.data()
-    // fallback
     return staticTopics.find(t => t.id === id) || null
   } catch {
     return staticTopics.find(t => t.id === id) || null
@@ -50,7 +52,6 @@ async function getProblems(filters = {}) {
     if (filters.difficulty) query = query.where('difficulty', '==', filters.difficulty)
     const snap = await query.get()
     if (snap.empty) {
-      // fallback to static data
       let result = [...staticProblems]
       if (filters.topic)      result = result.filter(p => p.topic === filters.topic)
       if (filters.difficulty) result = result.filter(p => p.difficulty.toLowerCase() === filters.difficulty.toLowerCase())
@@ -66,7 +67,7 @@ async function getProblems(filters = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/topics  — list all topics (summary, no full content)
+// GET /api/topics
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/topics', async (req, res) => {
   try {
@@ -82,7 +83,7 @@ router.get('/topics', async (req, res) => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/topics/:id  — full topic with content
+// GET /api/topics/:id
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/topics/:id', async (req, res) => {
   try {
@@ -96,7 +97,7 @@ router.get('/topics/:id', async (req, res) => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/problems  — list all problems with optional ?topic= ?difficulty=
+// GET /api/problems
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/problems', async (req, res) => {
   try {
@@ -110,95 +111,119 @@ router.get('/problems', async (req, res) => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/ask-ai  — AI tutor with streaming and conversational history
+// POST /api/ask-ai  — AI Tutor with streaming
+// Priority: Gemini (free) → OpenAI → Offline tips
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/ask-ai', authenticate, async (req, res) => {
-    const { question, topic, code, history = [] } = req.body
+  const { question, topic, code, history = [] } = req.body
 
-    if (!question || !question.trim()) {
-      return res.status(400).json({ success: false, message: 'Question is required' })
-    }
+  if (!question?.trim()) {
+    return res.status(400).json({ success: false, message: 'Question is required' })
+  }
 
+  const topicData = await getTopicById(topic)
+  const context = topicData?.content?.explanation
+    ? `\nTopic Context: ${topicData.content.explanation}` : ''
+
+  const systemPrompt = `You are an expert DSA tutor on AlgoVision. Be clear, concise, and encouraging.
+Topic: **${topic || 'General DSA'}**${code ? `\n\nStudent's current code:\n\`\`\`\n${code}\n\`\`\`` : ''}${context}
+Keep responses under 300 words. Use Markdown formatting. Be conversational.`
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.setHeader('Transfer-Encoding', 'chunked')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+
+  // ── GEMINI (primary — free tier available) ──────────────────────────────
+  if (hasGemini()) {
     try {
-      if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.includes('dummy')) {
-        // Stream a friendly fallback message so the frontend reader doesn't break
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-        res.setHeader('Transfer-Encoding', 'chunked')
-        res.write('🔧 **AI Tutor is currently in offline mode.**\n\nThe OpenAI API key is missing or invalid. Please check your `.env` file.\n\n### Quick Tips for **' + (topic || 'DSA') + '**:\n- Break the problem into smaller sub-problems.\n- Analyze the time and space complexity of your approach.\n- Use the **Visualize Optimal** feature (after submitting) to see the best approach!')
-        return res.end()
+      console.log('[Gemini] AI Tutor answering...')
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        systemInstruction: systemPrompt,
+      })
+
+      // Convert history to Gemini format — Gemini REQUIRES:
+      // 1. History must start with role 'user' (never 'model')
+      // 2. Roles must alternate user → model → user → model
+      // 3. No empty messages
+      let geminiHistory = history
+        .filter(m => (m.text || m.content || '').trim())
+        .map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: (m.text || m.content || '').trim() }],
+        }))
+
+      // Drop any leading 'model' messages (Gemini rejects them)
+      while (geminiHistory.length > 0 && geminiHistory[0].role === 'model') {
+        geminiHistory.shift()
       }
 
-      // Find topic context
-      const topicData = await getTopicById(topic)
-      const context = topicData ? `
-Topic Explanation: ${topicData.content?.explanation || ''}
-      `.trim() : ''
-
-      const systemPrompt = `You are an expert DSA tutor bot on AlgoVision.
-Your goal is to explain concepts clearly, concisely, and with an encouraging tone.
-Analyze this student doubt on the topic: **${topic || 'General DSA'}**.
-
-${code ? `### Current Student Code:\n\`\`\`\n${code}\n\`\`\`\n` : ''}
-
-${context ? `### Context for this topic:\n${context}` : ''}
-
-Respond with helpful explanations, patterns, and hints.
-Keep it strictly under 300 words. Use Markdown for formatting.
-Maintain a conversational tone based on the history provided.`
-
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history.map(msg => ({
-        role: msg.role === 'assistant' ? 'assistant' : 'user',
-        content: msg.text || msg.content
-      })),
-      { role: 'user', content: question }
-    ]
-
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    res.setHeader('Transfer-Encoding', 'chunked')
-
-    const stream = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages,
-      temperature: 0.7,
-      max_tokens: 800,
-      stream: true,
-    })
-
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content || ''
-      if (content) res.write(content)
-    }
-
-    res.end()
-  } catch (err) {
-    console.error('OpenAI Error:', err.message)
-    
-    // Check if it's a quota or auth error
-    const isQuotaError = err.message.includes('429') || err.message.includes('quota')
-    const isAuthError = err.message.includes('401') || err.message.includes('api_key')
-
-    if (!res.headersSent) {
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-      res.setHeader('Transfer-Encoding', 'chunked')
-      
-      if (isQuotaError) {
-        res.write('🚀 **AlgoVision Simulated AI (Offline Mode)**\n\n*Note: OpenAI API quota exceeded. Switching to local simulation.*\n\n')
-        res.write(`It seems you're asking about **${topic || 'DSA'}**. Here are some general tips:\n`)
-        res.write('- Always consider the **Time Complexity** (how many operations) and **Space Complexity** (how much extra memory).\n')
-        res.write('- For optimization, think about using **Hash Maps** to store results or **Two Pointers** to reduce nested loops.\n')
-        res.write('- Check the **Visualize Optimal** tool in the Practice Arena for a step-by-step best approach!')
-      } else if (isAuthError) {
-        res.write('🔑 **AI Tutor Configuration Error**\n\nThe OpenAI API key is invalid or missing. Please contact the administrator.')
-      } else {
-        res.write('⚠️ **AI Tutor encountered an error.** ' + err.message)
+      // Ensure strict alternation (remove consecutive same-role messages)
+      const cleanHistory = []
+      for (const msg of geminiHistory) {
+        const last = cleanHistory[cleanHistory.length - 1]
+        if (!last || last.role !== msg.role) {
+          cleanHistory.push(msg)
+        }
+        // If same role, skip (dedup consecutive)
       }
-      res.end()
-    } else {
-      res.end('\n\n[Connection interrupted — simulated response unavailable]')
+
+      console.log(`[Gemini] Sending with ${cleanHistory.length} history messages`)
+      const chat = model.startChat({ history: cleanHistory })
+      const result = await chat.sendMessageStream(question)
+
+      for await (const chunk of result.stream) {
+        const text = chunk.text()
+        if (text) res.write(text)
+      }
+      return res.end()
+    } catch (err) {
+      console.error('[Gemini] Tutor error:', err.message)
+      if (res.headersSent) return res.end('\n\n[Gemini error — try again]')
+      // Fall through to OpenAI
     }
   }
+
+
+  // ── OPENAI (fallback) ────────────────────────────────────────────────────
+  if (hasOpenAI()) {
+    try {
+      console.log('[OpenAI] AI Tutor answering...')
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content || '' })),
+        { role: 'user', content: question },
+      ]
+      const stream = await openai.chat.completions.create({
+        model: 'gpt-4o-mini', messages, temperature: 0.7, max_tokens: 800, stream: true,
+      })
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || ''
+        if (content) res.write(content)
+      }
+      return res.end()
+    } catch (err) {
+      console.error('[OpenAI] Tutor error:', err.message)
+      if (res.headersSent) return res.end('\n\n[OpenAI error — try again]')
+    }
+  }
+
+  // ── Offline fallback ─────────────────────────────────────────────────────
+  res.write(`## 🤖 AlgoVision Tutor (Offline Mode)\n\n`)
+  res.write(`_No AI key configured. To enable the AI Tutor, do ONE of the following:_\n\n`)
+  res.write(`**Option 1 — Gemini (FREE, recommended):**\n`)
+  res.write(`1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)\n`)
+  res.write(`2. Sign in with Google → click **Create API Key**\n`)
+  res.write(`3. Add to \`backend/.env\`: \`GEMINI_API_KEY=your-key-here\`\n\n`)
+  res.write(`**Option 2 — OpenAI:**\n`)
+  res.write(`Add \`OPENAI_API_KEY=sk-...\` to \`backend/.env\`\n\n`)
+  res.write(`---\n### Quick Tips for **${topic || 'DSA'}**:\n`)
+  res.write(`- Break problems into smaller sub-problems\n`)
+  res.write(`- Always analyse **Time Complexity** and **Space Complexity**\n`)
+  res.write(`- Use the **Visualize Optimal** button (after Submit) to see the best approach!`)
+  return res.end()
 })
 
 export default router

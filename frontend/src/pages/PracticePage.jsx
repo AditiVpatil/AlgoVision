@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
 import { AnimatedBackground } from '@/components/animated-background'
@@ -11,9 +11,42 @@ import {
   Bookmark, BookmarkCheck, X, Eye, TrendingUp, Clock
 } from 'lucide-react'
 import { AiTutor } from '@/components/AiTutor'
-
 import { API_BASE_URL } from '@/src/config'
 import { motion, AnimatePresence } from 'framer-motion'
+
+// ── Lazy-load visualization components ───────────────────────────────────────
+const ArrayViz       = lazy(() => import('@/components/visualizations/ArrayViz').then(m => ({ default: m.ArrayViz })))
+const SortingViz     = lazy(() => import('@/components/visualizations/SortingViz').then(m => ({ default: m.SortingViz })))
+const LinkedListViz  = lazy(() => import('@/components/visualizations/LinkedListViz').then(m => ({ default: m.LinkedListViz })))
+const TreeViz        = lazy(() => import('@/components/visualizations/TreeViz').then(m => ({ default: m.TreeViz })))
+const GraphViz       = lazy(() => import('@/components/visualizations/GraphViz').then(m => ({ default: m.GraphViz })))
+const BinarySearchViz = lazy(() => import('@/components/visualizations/BinarySearchViz').then(m => ({ default: m.BinarySearchViz })))
+const StackViz       = lazy(() => import('@/components/visualizations/StackViz').then(m => ({ default: m.StackViz })))
+const QueueViz       = lazy(() => import('@/components/visualizations/QueueViz').then(m => ({ default: m.QueueViz })))
+
+// Map problem topic -> visualization component
+function TopicVisualizer({ topic }) {
+  const t = (topic || '').toLowerCase()
+  const VizLoader = ({ children }) => (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-48">
+        <div className="w-8 h-8 border-2 border-[#7B61FF] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      {children}
+    </Suspense>
+  )
+
+  if (t.includes('sort')) return <VizLoader><SortingViz /></VizLoader>
+  if (t.includes('link')) return <VizLoader><LinkedListViz /></VizLoader>
+  if (t.includes('tree') || t.includes('bst') || t.includes('binary tree')) return <VizLoader><TreeViz /></VizLoader>
+  if (t.includes('graph')) return <VizLoader><GraphViz /></VizLoader>
+  if (t.includes('binary search') || t.includes('binary-search')) return <VizLoader><BinarySearchViz /></VizLoader>
+  if (t.includes('stack')) return <VizLoader><StackViz /></VizLoader>
+  if (t.includes('queue')) return <VizLoader><QueueViz /></VizLoader>
+  // Default: array / hash / dp / general
+  return <VizLoader><ArrayViz /></VizLoader>
+}
 
 const iconMap = { Layers, Search, GitBranch, Network, Box, Zap }
 
@@ -619,12 +652,12 @@ export default function PracticePage() {
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                 fontWeight: '500',
                 lineHeight: 1.6,
-                cursorSmoothCaretAnimation: 'on',
+                cursorSmoothCaretAnimation: true,
                 padding: { top: 30, left: 30 },
-                renderValidationDecorations: 'on',
                 quickSuggestions: { other: true, comments: true, strings: true },
                 formatOnPaste: true,
                 formatOnType: true,
+                automaticLayout: true,
               }}
             />
             <div className="absolute top-8 right-10 pointer-events-none opacity-10">
@@ -743,27 +776,41 @@ export default function PracticePage() {
 
       {/* Optimized Code Visualization Modal */}
       <AnimatePresence>
-        {showOptimizedModal && (
+        {showOptimizedModal && aiAnalysis && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowOptimizedModal(false) }}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-5xl h-[80vh] bg-[#0A0F1E] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl"
+              className="w-full max-w-6xl h-[90vh] bg-[#0A0F1E] border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+              {/* Modal Header */}
+              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02] flex-shrink-0">
                 <div className="flex items-center gap-4">
                   <div className="p-3 rounded-2xl bg-[#7B61FF]/10 border border-[#7B61FF]/20">
                     <Sparkles className="w-5 h-5 text-[#7B61FF]" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-black text-white">AI Optimized Strategy</h3>
-                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">Automated High-Performance Implementation</p>
+                    <h3 className="text-xl font-black text-white">
+                      {aiAnalysis.optimizedApproachName || 'Optimal Strategy'}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                      {selectedProblem?.title} — Interactive Visualization
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 ml-4">
+                    <div className="px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                      Time: {aiAnalysis.optimalTimeComplexity}
+                    </div>
+                    <div className="px-3 py-1 rounded-lg bg-[#7B61FF]/10 border border-[#7B61FF]/20 text-[10px] font-black text-[#7B61FF] uppercase tracking-widest">
+                      Space: {aiAnalysis.optimalSpaceComplexity}
+                    </div>
                   </div>
                 </div>
                 <button
@@ -774,68 +821,65 @@ export default function PracticePage() {
                 </button>
               </div>
 
+              {/* Modal Body — 2 columns: Viz (left) + Code (right) */}
               <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 bg-[#1e1e1e] relative">
-                  <div className="absolute top-4 left-8 z-10">
+
+                {/* ─── Left: Algorithm Visualization ─── */}
+                <div className="w-[45%] border-r border-white/5 bg-[#070D1B] p-6 overflow-y-auto">
+                  <div className="mb-4">
+                    <p className="text-[9px] font-black text-[#7B61FF] uppercase tracking-[0.2em] mb-1">Algorithm in Action</p>
+                    <h4 className="text-sm font-black text-white">{selectedProblem?.topicLabel || 'Data Structure'} Visualization</h4>
+                  </div>
+
+                  <TopicVisualizer topic={selectedProblem?.topicLabel || selectedProblem?.topic || 'array'} />
+
+                  {/* Improvements list */}
+                  {aiAnalysis.improvements?.length > 0 && (
+                    <div className="mt-6 space-y-3">
+                      <p className="text-[9px] font-black text-[#7B61FF] uppercase tracking-[0.2em]">Key Improvements</p>
+                      {aiAnalysis.improvements.map((imp, i) => (
+                        <div key={i} className="flex gap-3 items-start">
+                          <div className="w-5 h-5 rounded-lg bg-[#7B61FF]/10 border border-[#7B61FF]/20 flex items-center justify-center flex-shrink-0 text-[9px] font-black text-[#7B61FF] mt-0.5">{i + 1}</div>
+                          <p className="text-xs text-slate-400 font-medium leading-relaxed">{imp}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Expert insight */}
+                  <div className="mt-6 p-4 rounded-2xl bg-gradient-to-br from-[#7B61FF]/10 to-transparent border border-[#7B61FF]/20">
+                    <p className="text-[8px] font-black text-slate-500 uppercase mb-1.5 tracking-widest">Expert Insight</p>
+                    <p className="text-xs text-slate-300 italic font-medium leading-relaxed">"{aiAnalysis.encouragement}"</p>
+                  </div>
+                </div>
+
+                {/* ─── Right: Optimized Code ─── */}
+                <div className="flex-1 bg-[#1e1e1e] relative flex flex-col">
+                  <div className="absolute top-4 left-6 z-10">
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
                       <Zap className="w-3 h-3" />
-                      {aiAnalysis?.optimizedApproachName || 'Optimal Strategy'}
+                      Optimal Code — {language.toUpperCase()}
                     </div>
                   </div>
                   <Editor
                     height="100%"
                     theme="vs-dark"
                     language={language === 'cpp' ? 'cpp' : language === 'java' ? 'java' : language}
-                    value={aiAnalysis?.optimizedCode || '// No optimized code available'}
+                    value={aiAnalysis?.optimizedCode || '// No optimized code available\n// Please run Submit first to get AI analysis'}
                     options={{
                       readOnly: true,
                       fontSize: 14,
                       minimap: { enabled: false },
-                      scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
+                      scrollbar: { vertical: 'visible', horizontal: 'hidden' },
                       lineNumbers: 'on',
                       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                       fontWeight: '500',
                       lineHeight: 1.6,
-                      padding: { top: 60, left: 30 },
+                      padding: { top: 56, left: 30 },
+                      automaticLayout: true,
+                      wordWrap: 'on',
                     }}
                   />
-                </div>
-                <div className="w-80 border-l border-white/5 p-8 bg-[#0a121d] overflow-auto">
-                    <h4 className="text-[10px] font-black text-[#7B61FF] uppercase tracking-[0.2em] mb-6">Efficiency Gap</h4>
-                    
-                    <div className="space-y-3 mb-10">
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                        <p className="text-[8px] font-black text-slate-500 uppercase mb-2">Time Complexity</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-400">Your: <span className="text-white font-mono">{aiAnalysis?.timeComplexity}</span></span>
-                          <ArrowRight className="w-3 h-3 text-slate-600" />
-                          <span className="text-[10px] text-emerald-400 font-black font-mono">{aiAnalysis?.optimalTimeComplexity}</span>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                        <p className="text-[8px] font-black text-slate-500 uppercase mb-2">Space Complexity</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-400">Your: <span className="text-white font-mono">{aiAnalysis?.spaceComplexity}</span></span>
-                          <ArrowRight className="w-3 h-3 text-slate-600" />
-                          <span className="text-[10px] text-emerald-400 font-black font-mono">{aiAnalysis?.optimalSpaceComplexity}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <h4 className="text-[10px] font-black text-[#7B61FF] uppercase tracking-[0.2em] mb-6">Strategic Shifts</h4>
-                    <div className="space-y-6">
-                      {aiAnalysis?.improvements?.map((imp, i) => (
-                        <div key={i} className="flex gap-4">
-                          <div className="w-6 h-6 rounded-lg bg-[#7B61FF]/10 border border-[#7B61FF]/20 flex items-center justify-center flex-shrink-0 text-[10px] font-black text-[#7B61FF]">{i+1}</div>
-                          <p className="text-xs text-slate-400 font-medium leading-relaxed">{imp}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-12 p-6 rounded-2xl bg-gradient-to-br from-[#7B61FF]/10 to-transparent border border-[#7B61FF]/20">
-                      <p className="text-[8px] font-black text-slate-500 uppercase mb-2 tracking-widest">Expert Insight</p>
-                      <p className="text-xs text-slate-300 italic font-medium leading-relaxed">"{aiAnalysis?.encouragement}"</p>
-                    </div>
                 </div>
               </div>
             </motion.div>
