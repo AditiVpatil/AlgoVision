@@ -253,7 +253,7 @@ export default function PracticePage() {
   })
 
   return (
-    <div className="min-h-screen relative bg-[#07111C]">
+    <div className="min-h-screen relative">
         <AnimatedBackground />
         
         {/* Floating AI Tutor Trigger */}
@@ -265,7 +265,7 @@ export default function PracticePage() {
           <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-[#07111C] animate-pulse" />
         </button>
 
-        <AiTutor topic={selectedProblem?.topicLabel || "general"} isOpen={aiOpen} onClose={() => setAiOpen(false)} code={code} />
+        <AiTutor topic={selectedProblem?.topicLabel || "general"} isOpen={aiOpen} onClose={() => setAiOpen(false)} code={view === 'editor' ? code : ''} />
         
         {view === 'list' ? (
           <main className="relative pt-12 pb-24 px-4 sm:px-6">
@@ -438,7 +438,7 @@ export default function PracticePage() {
           <motion.div 
             initial={{ y: 20, opacity: 0 }} 
             animate={{ y: 0, opacity: 1 }} 
-            className="h-screen bg-[#07111C] flex flex-col overflow-hidden relative z-10"
+            className="h-screen flex flex-col overflow-hidden relative z-10"
           >
       <div className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-[#0A0F1E] flex-shrink-0 backdrop-blur-2xl">
         <div className="flex items-center gap-6">

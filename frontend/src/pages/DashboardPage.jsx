@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const topicPct = Math.round((topicsCompleted / totalTopics) * 100)
 
   if (loading) return (
-    <div className="min-h-screen bg-[#07111C] flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center">
       <div className="text-center space-y-4">
         <Loader2 className="w-10 h-10 text-[#7B61FF] animate-spin mx-auto" />
         <p className="text-slate-400 text-sm font-medium">Loading your dashboard...</p>
@@ -68,7 +68,7 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="min-h-screen relative flex flex-col bg-[#07111C]">
+    <div className="min-h-screen relative flex flex-col">
       <AnimatedBackground />
 
       <main className="relative pt-12 pb-20 px-4 sm:px-6">

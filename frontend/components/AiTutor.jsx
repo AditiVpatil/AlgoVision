@@ -20,10 +20,33 @@ export function AiTutor({ topic, isOpen, onClose, code = '' }) {
   const [streamingText, setStreamingText] = useState('')
   const bottomRef = useRef(null)
 
+  // Load history when topic changes
   useEffect(() => {
-    sessionStorage.setItem(`av_chat_${topic || 'general'}`, JSON.stringify(messages))
+    const saved = sessionStorage.getItem(`av_chat_${topic || 'general'}`)
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved))
+      } catch (e) {
+        console.error('Failed to parse chat history', e)
+      }
+    } else {
+      setMessages([
+        {
+          role: 'assistant',
+          text: `Hi! I'm your AI tutor 🤖\n\nAsk me anything about **${topic || 'DSA'}** — explanations, hints, complexity analysis, or how to approach a problem!`,
+          ts: Date.now(),
+        },
+      ])
+    }
+  }, [topic])
+
+  // Save history when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      sessionStorage.setItem(`av_chat_${topic || 'general'}`, JSON.stringify(messages))
+    }
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingText])
+  }, [messages, streamingText, topic])
 
   const clearChat = () => {
     const defaultMsg = [{
