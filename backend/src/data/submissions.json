@@ -1,0 +1,11 @@
+[
+  {
+    "userId": "1779113650142",
+    "problemId": "6",
+    "code": "def solve(nums, target):\n    # Write your solution here\n    pass\n\n# Test call\nprint(solve([2, 7, 11, 15], 9))",
+    "language": "python",
+    "optimizationScore": 50,
+    "passed": false,
+    "createdAt": "2026-05-18T20:11:59.880Z"
+  }
+]

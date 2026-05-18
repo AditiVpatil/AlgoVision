@@ -2,6 +2,9 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { db } from '../firebase/client.js'
 import { authenticate } from '../middleware/auth.js'
 
@@ -9,8 +12,26 @@ dotenv.config()
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-for-dev'
 
-// Local fallback for when Firebase Admin credentials expire or are invalid
-const MOCK_USERS = []
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const USERS_FILE = path.join(__dirname, '..', 'data', 'users.json')
+
+let MOCK_USERS = []
+try {
+  if (fs.existsSync(USERS_FILE)) {
+    MOCK_USERS = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'))
+  }
+} catch (err) {
+  console.warn('Could not load users.json, starting fresh.')
+}
+
+const saveUsers = () => {
+  try {
+    if (!fs.existsSync(path.dirname(USERS_FILE))) fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true })
+    fs.writeFileSync(USERS_FILE, JSON.stringify(MOCK_USERS, null, 2))
+  } catch (err) {
+    console.error('Failed to save users:', err)
+  }
+}
 
 // Helper: Sign Token
 const signToken = (user) => {
@@ -32,6 +53,7 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt)
     const newUser = { id: Date.now().toString(), email, password: hashedPassword, username: username || email.split('@')[0], createdAt: new Date().toISOString() }
     MOCK_USERS.push(newUser)
+    saveUsers()
     const token = signToken(newUser)
     const { password: _, ...userNoPw } = newUser
     return res.status(201).json({ token, user: userNoPw })
@@ -70,6 +92,7 @@ router.post('/register', async (req, res) => {
       const hashedPassword = await bcrypt.hash(password, salt)
       const newUser = { id: Date.now().toString(), email, password: hashedPassword, username: username || email.split('@')[0], createdAt: new Date().toISOString() }
       MOCK_USERS.push(newUser)
+      saveUsers()
       const token = signToken(newUser)
       const { password: _, ...userNoPw } = newUser
       return res.status(201).json({ token, user: userNoPw })
@@ -147,6 +170,15 @@ router.patch('/profile', authenticate, async (req, res) => {
   try {
     const { username } = req.body
     if (!username?.trim()) return res.status(400).json({ message: 'Username required' })
+    if (!db) {
+      const userIdx = MOCK_USERS.findIndex(u => u.id === req.user.id)
+      if (userIdx === -1) return res.status(404).json({ message: 'User not found' })
+      const existing = MOCK_USERS.find(u => u.username === username)
+      if (existing && existing.id !== req.user.id) return res.status(409).json({ message: 'Username already taken' })
+      MOCK_USERS[userIdx].username = username
+      saveUsers()
+      return res.json({ user: { ...req.user, username } })
+    }
     const snap = await db.collection('users').where('username', '==', username).limit(1).get()
     if (!snap.empty && snap.docs[0].id !== req.user.id)
       return res.status(409).json({ message: 'Username already taken' })

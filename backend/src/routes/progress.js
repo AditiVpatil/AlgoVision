@@ -1,8 +1,30 @@
 import { Router } from 'express'
 import { db } from '../firebase/client.js'
 import { authenticate } from '../middleware/auth.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 const router = Router()
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const PROGRESS_FILE = path.join(__dirname, '..', 'data', 'progress.json')
+const QUIZ_FILE = path.join(__dirname, '..', 'data', 'quiz.json')
+
+let MOCK_PROGRESS = {}
+let MOCK_QUIZ = []
+try {
+  if (fs.existsSync(PROGRESS_FILE)) MOCK_PROGRESS = JSON.parse(fs.readFileSync(PROGRESS_FILE, 'utf-8'))
+  if (fs.existsSync(QUIZ_FILE)) MOCK_QUIZ = JSON.parse(fs.readFileSync(QUIZ_FILE, 'utf-8'))
+} catch {}
+
+const saveProgress = () => {
+  try {
+    if (!fs.existsSync(path.dirname(PROGRESS_FILE))) fs.mkdirSync(path.dirname(PROGRESS_FILE), { recursive: true })
+    fs.writeFileSync(PROGRESS_FILE, JSON.stringify(MOCK_PROGRESS, null, 2))
+    fs.writeFileSync(QUIZ_FILE, JSON.stringify(MOCK_QUIZ, null, 2))
+  } catch (err) {}
+}
 
 // POST /api/progress/quiz
 router.post('/quiz', authenticate, async (req, res) => {
@@ -11,7 +33,12 @@ router.post('/quiz', authenticate, async (req, res) => {
     return res.status(400).json({ message: 'topicId, score, total required' })
 
   if (!db) {
-    console.warn('⚠️ Firebase unavailable – quiz result not persisted.')
+    const docId = `${req.user.id}_${topicId}`
+    if (!MOCK_PROGRESS[docId]) MOCK_PROGRESS[docId] = { userId: req.user.id, topicId, stepReached: 0 }
+    MOCK_PROGRESS[docId].stepReached = Math.max(MOCK_PROGRESS[docId].stepReached, 2)
+    MOCK_PROGRESS[docId].updatedAt = new Date().toISOString()
+    MOCK_QUIZ.push({ userId: req.user.id, topicId, score, total, accuracy: (score / total) * 100, createdAt: new Date().toISOString() })
+    saveProgress()
     return res.json({ id: `local_${Date.now()}`, topicId, score, total })
   }
 
@@ -47,7 +74,9 @@ router.post('/topic', authenticate, async (req, res) => {
   }
 
   if (!db) {
-    console.warn('⚠️ Firebase unavailable – topic progress not persisted.')
+    const docId = `${req.user.id}_${topicId}`
+    MOCK_PROGRESS[docId] = { ...(MOCK_PROGRESS[docId] || {}), ...update }
+    saveProgress()
     return res.json(update)
   }
 
@@ -63,7 +92,10 @@ router.post('/topic', authenticate, async (req, res) => {
 
 // GET /api/progress/topic/:topicId
 router.get('/topic/:topicId', authenticate, async (req, res) => {
-  if (!db) return res.json({ stepReached: 0, completed: false })
+  if (!db) {
+    const docId = `${req.user.id}_${req.params.topicId}`
+    return res.json(MOCK_PROGRESS[docId] || { stepReached: 0, completed: false })
+  }
   try {
     const doc = await db.collection('topicProgress')
       .doc(`${req.user.id}_${req.params.topicId}`).get()
@@ -75,7 +107,11 @@ router.get('/topic/:topicId', authenticate, async (req, res) => {
 
 // GET /api/progress/all
 router.get('/all', authenticate, async (req, res) => {
-  if (!db) return res.json({ success: true, data: {} })
+  if (!db) {
+    const progress = {}
+    Object.values(MOCK_PROGRESS).filter(p => p.userId === req.user.id).forEach(p => progress[p.topicId] = p)
+    return res.json({ success: true, data: progress })
+  }
   try {
     const snap = await db.collection('topicProgress')
       .where('userId', '==', req.user.id).get()
@@ -92,29 +128,39 @@ router.get('/all', authenticate, async (req, res) => {
 
 // GET /api/progress/dashboard
 router.get('/dashboard', authenticate, async (req, res) => {
-  if (!db) {
-    return res.json({
-      topicsCompleted: 0,
-      problemsSolved: 0,
-      avgOptimizationScore: 0,
-      totalSubmissions: 0,
-      quizAccuracy: [],
-      optimizationGrowth: [],
-    })
-  }
   try {
     const userId = req.user.id
+    let progressDocs = []
+    let submissionsDocs = []
+    let quizDocs = []
 
-    const [progressSnap, submissionsSnap, quizSnap] = await Promise.all([
-      db.collection('topicProgress').where('userId', '==', userId).get(),
-      db.collection('submissions').where('userId', '==', userId).get(),
-      db.collection('quizResults').where('userId', '==', userId).get(),
-    ])
+    if (!db) {
+      // Use local files
+      const SUBMISSIONS_FILE = path.join(__dirname, '..', 'data', 'submissions.json')
+      
+      progressDocs = Object.values(MOCK_PROGRESS).filter(p => p.userId === userId)
+      quizDocs = MOCK_QUIZ.filter(q => q.userId === userId)
+      
+      if (fs.existsSync(SUBMISSIONS_FILE)) {
+        try {
+          const allSubs = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, 'utf-8'))
+          submissionsDocs = allSubs.filter(s => s.userId === userId)
+        } catch(e) {}
+      }
+    } else {
+      const [progressSnap, submissionsSnap, quizSnap] = await Promise.all([
+        db.collection('topicProgress').where('userId', '==', userId).get(),
+        db.collection('submissions').where('userId', '==', userId).get(),
+        db.collection('quizResults').where('userId', '==', userId).get(),
+      ])
+      progressDocs = progressSnap.docs.map(d => d.data())
+      submissionsDocs = submissionsSnap.docs.map(d => d.data())
+      quizDocs = quizSnap.docs.map(d => d.data())
+    }
 
-    const topicsCompleted = progressSnap.docs.filter(d => d.data().completed).length
-    const submissions = submissionsSnap.docs.map(d => d.data())
-      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
-    const quizResults = quizSnap.docs.map(d => d.data())
+    const topicsCompleted = progressDocs.filter(d => d.completed).length
+    const submissions = submissionsDocs.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+    const quizResults = quizDocs
 
     const problemsSolved = new Set(submissions.map(s => s.problemId)).size
     const avgOptimizationScore = submissions.length
@@ -133,7 +179,7 @@ router.get('/dashboard', authenticate, async (req, res) => {
     }))
 
     const optimizationGrowth = submissions.map(s => ({
-      problem: s.problemId.replace(/-/g, ' '),
+      problem: String(s.problemId).replace(/-/g, ' '),
       score: s.optimizationScore || 0,
       date: s.createdAt,
     }))

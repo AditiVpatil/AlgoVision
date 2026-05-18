@@ -4,10 +4,15 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { db } from '../firebase/client.js'
 import { authenticate } from '../middleware/auth.js'
 import { problems } from '../data/problems.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 const router = Router()
 const hasGemini = () => !!(process.env.GEMINI_API_KEY)
 const hasOpenAI = () => !!(process.env.OPENAI_API_KEY)
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/code/analyze
@@ -53,7 +58,18 @@ IMPORTANT: optimizedCode must be a complete runnable program.`
   }
 
   const saveToDb = (analysis) => {
-    if (db) db.collection('submissions').add({ userId: req.user?.id || 'anon', problemId: String(problemId || ''), code, language, optimizationScore: analysis.score, passed: analysis.passed, createdAt: new Date().toISOString() }).catch(() => {})
+    if (db) {
+      db.collection('submissions').add({ userId: req.user?.id || 'anon', problemId: String(problemId || ''), code, language, optimizationScore: analysis.score, passed: analysis.passed, createdAt: new Date().toISOString() }).catch(() => {})
+    } else {
+      const SUBMISSIONS_FILE = path.join(__dirname, '..', 'data', 'submissions.json');
+      try {
+        let subs = [];
+        if (fs.existsSync(SUBMISSIONS_FILE)) subs = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, 'utf-8'));
+        subs.push({ userId: req.user?.id || 'anon', problemId: String(problemId || ''), code, language, optimizationScore: analysis.score, passed: analysis.passed, createdAt: new Date().toISOString() });
+        if (!fs.existsSync(path.dirname(SUBMISSIONS_FILE))) fs.mkdirSync(path.dirname(SUBMISSIONS_FILE), { recursive: true });
+        fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(subs, null, 2));
+      } catch (err) {}
+    }
   }
 
   // ── Gemini (primary — free) ───────────────────────────────────────────────

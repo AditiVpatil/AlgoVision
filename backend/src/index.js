@@ -44,7 +44,7 @@ function startServer(port) {
     console.log(`👤 Auth          →  /api/auth`)
     console.log(`📚 Topics        →  /api/topics`)
     console.log(`🎯 Problems      →  /api/problems`)
-    console.log(`💻 Code Run      →  /api/code/run`)
+    console.log(`💻 Code Run      →  POST /execute`)
     console.log(`🤖 AI Tutor      →  POST /api/ask-ai\n`)
   })
 
