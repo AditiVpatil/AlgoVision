@@ -5,6 +5,10 @@ import express from 'express'
 import cors from 'cors'
 import { createServer } from 'net'
 
+import executeRoutes from "./routes/execute.js";
+
+
+
 import dsaRoutes from './routes/dsa.js'
 import authRoutes from './routes/auth.js'
 import codeRoutes from './routes/code.js'
@@ -21,7 +25,7 @@ app.use('/api', dsaRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/code', codeRoutes)
 app.use('/api/progress', progressRoutes)
-
+app.use("/execute", executeRoutes);
 // Health check
 app.get('/api/health', (_, res) =>
   res.json({ status: 'ok', ts: new Date().toISOString() })

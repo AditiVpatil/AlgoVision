@@ -110,15 +110,27 @@ export default function PracticePage() {
   const runCode = async () => {
     setIsRunning(true)
     setOutput({ stdout: 'Running code...', stderr: '', compileErr: '' })
+    setTestCaseResults([]) // Clear previous test cases
     try {
       const token = localStorage.getItem('av_token')
-      const res = await fetch(`${API_BASE_URL}/code/run`, {
+
+      const judge0LanguageMap = {
+        javascript: 63, // Node.js
+        python: 71,     // Python 3
+        java: 62,       // Java
+        cpp: 54         // C++
+      };
+
+      const language_id = judge0LanguageMap[language];
+      const executeUrl = API_BASE_URL.replace(/\/api\/?$/, '') + '/execute';
+
+      const res = await fetch(executeUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ code, language, stdin }),
+        body: JSON.stringify({ code, language_id, stdin }),
       })
       if (res.status === 401) {
         localStorage.removeItem('av_token');
@@ -129,24 +141,25 @@ export default function PracticePage() {
       
       const data = await res.json()
       if (!res.ok) {
-        setOutput({ stdout: '', stderr: data.message || 'Execution failed', compileErr: '', success: false })
+        setOutput({ stdout: '', stderr: data.message || data.error || 'Execution failed', compileErr: '', success: false })
         return;
       }
 
       setOutput({
-        stdout: data.stdout || '',
-        stderr: data.stderr || '',
-        compileErr: data.compileErr || '',
-        success: data.success
+        stdout: data.output?.stdout || '',
+        stderr: data.output?.stderr || '',
+        compileErr: data.output?.compileOutput || '',
+        success: data.success && !data.output?.hasError
       })
 
       // Logic for test case comparison
-      if (selectedProblem?.testCases && data.stdout) {
+      const actualStdout = data.output?.stdout || '';
+      if (selectedProblem?.testCases) {
         const results = selectedProblem.testCases.map(tc => {
-          const actual = data.stdout.trim().replace(/\s+/g, '')
+          const actual = actualStdout.trim().replace(/\s+/g, '')
           const expected = tc.expected.trim().replace(/\s+/g, '')
-          const passed = actual.includes(expected) // Simple inclusion check for now
-          return { ...tc, actual: data.stdout.trim(), passed }
+          const passed = actual !== '' && actual.includes(expected) // Simple inclusion check for now
+          return { ...tc, actual: actualStdout.trim(), passed }
         })
         setTestCaseResults(results)
         setTerminalTab('testcase')
